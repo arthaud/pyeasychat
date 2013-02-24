@@ -1,0 +1,8 @@
+pyeasychat
+==========
+
+A slight console based chat with a curses GUI.
+
+The goal is to be similar to netcat.
+
+@see ./main.py -h
