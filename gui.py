@@ -19,17 +19,45 @@ def wrapper(fun):
             curses.endwin()
     return wrapped
 
+class Window(object):
+    def __init__(self, screen):
+        self.screen = screen
+        self.win = curses.newwin(0, 0)
+        self.reset_size()
+
+    def refresh(self):
+        self.win.refresh()
+
+    def reset_size(self):
+        pass
+
+class UserInput(Window):
+    def __init__(self, screen, client):
+        self.client = client
+        self.input = u''
+        Window.__init__(self, screen)
+
+    def reset_size(self):
+        y, x = self.screen.getmaxyx()
+        self.win.resize(1, x)
+        self.win.mvwin(y-1, 0)
+
+        self.win.erase()
+        self.win.addstr('[%s] # %s' % (self.client.username, self.input))
+            
+class Chat(Window):
+    def reset_size(self):
+        y, x = self.screen.getmaxyx()
+        self.win.resize(y-1, x)
+        self.win.mvwin(0, 0)
+
+        self.win.erase()
+        self.win.addstr('Connecté a localhost')
+
 @wrapper
 def run(client, screen):
-    y, x = screen.getmaxyx()
-
-    # User Input
-    user_input = curses.newwin(1, x, y-1, 0)
-    user_input.addstr('[%s] # ' % client.username)
-
-    # Chat
-    chat = curses.newwin(y-1, x, 0, 0)
-    chat.addstr('Connecté a %s\n' % client.socket.getpeername())
+    user_input = UserInput(screen, client)
+    chat = Chat(screen)
 
     screen.refresh()
     chat.refresh()
@@ -39,5 +67,5 @@ def run(client, screen):
         if c == ord('q'):
             break
         else:
-            user_input.addstr(chr(c))
+            user_input.win.addstr(chr(c))
             user_input.refresh()
