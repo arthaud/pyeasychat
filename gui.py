@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # -*-coding:Utf-8 -*
 import curses
+from curses import ascii
 
 def wrapper(fun):
     def wrapped(*args, **kwargs):
@@ -72,10 +73,31 @@ class UserInput(Window):
         self._refresh()
 
     def key_event(self, key):
-        if key >= 0 and key <= 255:
-            self._win.addstr(chr(key))
+        if key >= 0 and key <= 255 and not ascii.iscntrl(key):
+            self._win.insstr(chr(key))
+            self._input = self._input[:self._cursor] + chr(key) + self._input[self._cursor:]
             self._cursor += 1
-            self._refresh()
+            self.redraw_cursor()
+        elif key == curses.KEY_LEFT and self._cursor > 0:
+            self._cursor -= 1
+            self.redraw_cursor()
+        elif key == curses.KEY_RIGHT and self._cursor < len(self._input):
+            self._cursor += 1
+            self.redraw_cursor()
+        elif key == curses.KEY_BACKSPACE and self._cursor > 0:
+            self._input = self._input[:self._cursor-1] + self._input[self._cursor:]
+            self._cursor -= 1
+            self.redraw()
+        elif ascii.SOH == key:
+            self._cursor = 0
+            self.redraw_cursor()
+        elif ascii.ENQ == key:
+            self._cursor = len(self._input)
+            self.redraw_cursor()
+        elif ascii.NAK == key:
+            self._input = str()
+            self._cursor = 0
+            self.redraw()
             
 class Chat(Window):
     def __init__(self, messages, redraw_cursor, x, y, width, height):
