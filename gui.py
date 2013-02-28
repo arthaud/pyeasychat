@@ -72,31 +72,41 @@ class UserInput(Window):
         self._win.move(0, len(self.get_prompt()) + self._cursor)
         self._refresh()
 
+    def get_input(self):
+        return self._input
+
     def key_event(self, key):
-        if key >= 0 and key <= 255 and not ascii.iscntrl(key):
+        if ascii.isprint(key):
             self._win.insstr(chr(key))
             self._input = self._input[:self._cursor] + chr(key) + self._input[self._cursor:]
             self._cursor += 1
             self.redraw_cursor()
-        elif key == curses.KEY_LEFT and self._cursor > 0:
+        elif key in (curses.KEY_LEFT, ascii.STX) and self._cursor > 0: # <- or Ctrl+B
             self._cursor -= 1
             self.redraw_cursor()
-        elif key == curses.KEY_RIGHT and self._cursor < len(self._input):
+        elif key in (curses.KEY_RIGHT, ascii.ACK) and self._cursor < len(self._input): # -> or Ctrl+F
             self._cursor += 1
             self.redraw_cursor()
-        elif key == curses.KEY_BACKSPACE and self._cursor > 0:
+        elif key in (curses.KEY_BACKSPACE, ascii.BS) and self._cursor > 0: # Backspace or Ctrl+H
             self._input = self._input[:self._cursor-1] + self._input[self._cursor:]
             self._cursor -= 1
             self.redraw()
-        elif ascii.SOH == key:
+        elif key in (curses.KEY_DC, ascii.EOT) and self._cursor < len(self._input): # Suppr or Ctrl+D
+            self._input = self._input[:self._cursor] + self._input[self._cursor+1:]
+            self._win.delch()
+            self._refresh()
+        elif key == ascii.SOH: # Ctrl+A
             self._cursor = 0
             self.redraw_cursor()
-        elif ascii.ENQ == key:
+        elif key == ascii.ENQ: # Ctrl+E
             self._cursor = len(self._input)
             self.redraw_cursor()
-        elif ascii.NAK == key:
+        elif key == ascii.NAK: # Ctrl+U
             self._input = str()
             self._cursor = 0
+            self.redraw()
+        elif key == ascii.VT: # Ctrl+K
+            self._input = self._input[:self._cursor]
             self.redraw()
             
 class Chat(Window):
@@ -118,10 +128,10 @@ class Chat(Window):
         self.redraw_cursor()
         
     def key_event(self, key):
-        if key in (curses.KEY_UP, curses.KEY_DOWN):
-            if key == curses.KEY_UP:
+        if key in (curses.KEY_UP, curses.KEY_DOWN, ascii.DLE, ascii.SO):
+            if key in (curses.KEY_UP, ascii.DLE): # Up or Ctrl+P
                 self._scroll += 1
-            if key == curses.KEY_DOWN and self._scroll >= 1:
+            if key in (curses.KEY_DOWN, ascii.SO) and self._scroll >= 1: # Down or Ctrl+N
                 self._scroll -= 1
             self.redraw()
         
@@ -141,8 +151,11 @@ def run(screen, client):
         key = screen.getch()
         chat.key_event(key)
         user_input.key_event(key)
+
         if key == curses.KEY_RESIZE:
             y, x = screen.getmaxyx()
             screen.refresh()
             chat.resize(0, 0, x, y-1)
             user_input.resize(0, y-1, x, 1)
+        elif key == ascii.EOT and user_input.get_input() == '': # Ctrl+D and empty input
+            break 
