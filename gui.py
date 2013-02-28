@@ -141,3 +141,8 @@ def run(screen, client):
         key = screen.getch()
         chat.key_event(key)
         user_input.key_event(key)
+        if key == curses.KEY_RESIZE:
+            y, x = screen.getmaxyx()
+            screen.refresh()
+            chat.resize(0, 0, x, y-1)
+            user_input.resize(0, y-1, x, 1)
