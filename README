@@ -3,6 +3,6 @@ pyeasychat
 
 A slight console based chat with a curses GUI.
 
-The goal is to be similar to netcat.
+pyeasychat use TCP/IP, so everybody can communicate with it, with netcat, telnet..
 
 @see ./main.py -h
