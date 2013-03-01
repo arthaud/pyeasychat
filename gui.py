@@ -2,6 +2,7 @@
 # -*-coding:Utf-8 -*
 import curses
 from curses import ascii
+from time import sleep
 
 def wrapper(fun):
     def wrapped(*args, **kwargs):
@@ -9,6 +10,7 @@ def wrapper(fun):
         curses.noecho()
         curses.cbreak()
         screen.keypad(1)
+        screen.nodelay(1)
         new_args = (screen,) + args
 
         try:
@@ -18,6 +20,7 @@ def wrapper(fun):
         finally:
             curses.nocbreak()
             screen.keypad(0)
+            screen.nodelay(0)
             curses.echo()
             curses.endwin()
     return wrapped
@@ -108,6 +111,11 @@ class UserInput(Window):
         elif key == ascii.VT: # Ctrl+K
             self._input = self._input[:self._cursor]
             self.redraw()
+        elif key in (curses.KEY_ENTER, ascii.NL): # Enter
+            self.client.send(self._input)
+            self._input = str()
+            self._cursor = 0
+            self.redraw()
             
 class Chat(Window):
     def __init__(self, messages, redraw_cursor, x, y, width, height):
@@ -126,7 +134,19 @@ class Chat(Window):
 
         self._refresh()
         self.redraw_cursor()
+
+    def handle_messages(self):
+        redraw = not self._messages.empty()
+
+        while not self._messages.empty():
+            line = self._messages.get()
+            self._lines.insert(0, line)
+            if self._scroll > 0:
+                self._scroll += 1
         
+        if redraw:
+            self.redraw()
+
     def key_event(self, key):
         if key in (curses.KEY_UP, curses.KEY_DOWN, ascii.DLE, ascii.SO):
             if key in (curses.KEY_UP, ascii.DLE): # Up or Ctrl+P
@@ -140,17 +160,13 @@ def run(screen, client):
     screen.refresh()
     y, x = screen.getmaxyx()
     user_input = UserInput(client, 0, y-1, x, 1)
-    chat = Chat([], user_input.redraw_cursor, 0, 0, x, y-1)
-
-    # Only for test
-    chat._lines = ['Maxima: ça va ça va', 'Truc: oui et toi ?', 'Maxima: salut ça va ?']
-    chat.redraw()
-    user_input.redraw()
+    chat = Chat(client.messages, user_input.redraw_cursor, 0, 0, x, y-1)
 
     while True:
         key = screen.getch()
-        chat.key_event(key)
         user_input.key_event(key)
+        chat.handle_messages()
+        chat.key_event(key)
 
         if key == curses.KEY_RESIZE:
             y, x = screen.getmaxyx()
@@ -159,3 +175,4 @@ def run(screen, client):
             user_input.resize(0, y-1, x, 1)
         elif key == ascii.EOT and user_input.get_input() == '': # Ctrl+D and empty input
             break 
+        sleep(0.025)
