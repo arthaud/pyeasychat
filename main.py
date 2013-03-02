@@ -1,22 +1,21 @@
 #!/usr/bin/python3
 # -*-coding:Utf-8 -*
 import gui
-import queue
+from thread import ServerThread, ClientThread
 import argparse
 import getpass
 
-class Client(object):
-    pass
 
 def run(host, port, listen, username):
-    c = Client()
-    c.messages = queue.Queue()
-    c.messages.put('server: Connected to %s:%s' % (host, port))
-    c.send = lambda x: c.messages.put(x)
-    c.username = username
-    c.socket = Client()
+    if listen:
+        server = ServerThread(host, port)
+        server.start()
 
-    gui.run(c)
+    client = ClientThread(host, port, username)
+    client.start()
+    client.messages.put('server: Connected to %s:%s' % (host, port))
+    gui.run(client)
+    client.send_disconnection_message()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Chat with other people. pyeasychat use TCP/IP, so everybody can communicate with it, with netcat, telnet..')

@@ -175,4 +175,6 @@ def run(screen, client):
             user_input.resize(0, y-1, x, 1)
         elif key == ascii.EOT and user_input.get_input() == '': # Ctrl+D and empty input
             break 
+        elif not client.is_alive(): # disconnected
+            break
         sleep(0.025)
