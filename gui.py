@@ -110,6 +110,15 @@ class UserInput(Window):
     def get_prompt(self):
         return UserInput.PROMPT % self.client.username
 
+    def resize(self, x, y, width, height):
+        if len(self.get_prompt()) + len(self._input) + 2 > width: # window too small for current input
+            input_size = width - len(self.get_prompt()) - 1
+            self._input = self._input[:input_size]
+            if self._cursor > input_size:
+                self._cursor = input_size
+
+        Window.resize(self, x, y, width, height)
+
     def redraw(self):
         self._erase()
         self._win.addstr(self.get_prompt())
@@ -157,7 +166,7 @@ class UserInput(Window):
             self._input = str()
             self._cursor = 0
             self.redraw()
-        elif key is not curses.ERR and len(self.get_prompt()) + len(self._input) + 1 < self._win.getmaxyx()[1]:
+        elif key is not curses.ERR and len(self.get_prompt()) + len(self._input) + 1 < self._win.getmaxyx()[1]: # window not too small
             s = self.getch_convert(key)
 
             if s:
@@ -175,11 +184,14 @@ class Chat(Window):
         Window.__init__(self, x, y, width, height)
 
     def redraw(self):
-        y, x = self._win.getmaxyx()
+        height, width = self._win.getmaxyx()
         self._erase()
 
-        for i, line in enumerate(self._lines[self._scroll:][:y]):
-            self._win.addstr(y-1-i, 0, line)
+        for i, line in enumerate(self._lines[self._scroll:][:height]):
+            if len(line) >= width:
+                self._win.addstr(height-1-i, 0, line[:width-4] + '...')
+            else:
+                self._win.addstr(height-1-i, 0, line)
 
         self._refresh()
         self.redraw_cursor()
@@ -207,11 +219,11 @@ class Chat(Window):
 @wrapper
 def run(screen, client):
     screen.refresh()
-    y, x = screen.getmaxyx()
+    height, width = screen.getmaxyx()
     user_input = UserInput(client, lambda c : getch_convert(screen.getch, c),
-            0, y-1, x, 1)
+            0, height-1, width, 1)
     chat = Chat(client.messages, user_input.redraw_cursor,
-            0, 0, x, y-1)
+            0, 0, width, height-1)
 
     while True:
         key = screen.getch()
@@ -220,10 +232,10 @@ def run(screen, client):
         chat.key_event(key)
 
         if key == curses.KEY_RESIZE:
-            y, x = screen.getmaxyx()
+            height, width = screen.getmaxyx()
             screen.refresh()
-            chat.resize(0, 0, x, y-1)
-            user_input.resize(0, y-1, x, 1)
+            user_input.resize(0, height-1, width, 1)
+            chat.resize(0, 0, width, height-1)
         elif key == ascii.EOT and user_input.get_input() == '': # Ctrl+D and empty input
             break 
         elif not client.is_alive(): # disconnected
