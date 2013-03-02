@@ -3,6 +3,7 @@
 import curses
 from curses import ascii
 from time import sleep
+import locale
 
 def wrapper(fun):
     def wrapped(*args, **kwargs):
@@ -24,6 +25,50 @@ def wrapper(fun):
             curses.echo()
             curses.endwin()
     return wrapped
+
+def getch_convert(getch, c):
+    ''' getch_convert tries to convert a key to a character.
+    it returns None if the key is not a character.
+
+    getch_convert needs screen.getch() because getch returns only the first byte. '''
+    def get_next_byte():
+        c = getch()
+        if 128 <= c and c <= 191:
+            return c
+        else:
+            raise UnicodeError
+
+    if locale.getpreferredencoding() == 'UTF-8':
+        # thanks to Iñigo Serna <inigoserna@gmail.com> for this part
+        byte_list = []
+        try:
+            if 32 <= c and c <= 126:
+                byte_list.append(c)
+            if 194 <= c and c <= 223:
+                byte_list.append(c)
+                byte_list.append(get_next_byte())
+            elif 224 <= c and c <= 239:
+                byte_list.append(c)
+                byte_list.append(get_next_byte())
+                byte_list.append(get_next_byte())
+            elif 240 <= c and c <= 244:
+                byte_list.append(c)
+                byte_list.append(get_next_byte())
+                byte_list.append(get_next_byte())
+                byte_list.append(get_next_byte())
+
+            if byte_list:
+                buffer = ''.join([chr(byte) for byte in byte_list])
+                return bytes(buffer, 'latin1').decode('UTF-8')
+            else:
+                return None
+        except UnicodeDecodeError or UnicodeError:
+            return None
+    else: # ASCII
+        if c >= 32 and c <= 126:
+            return chr(c)
+        else:
+            return None
 
 class Window:
     def __init__(self, x, y, width, height):
@@ -55,8 +100,9 @@ class Window:
 class UserInput(Window):
     PROMPT = '[%s] # '
 
-    def __init__(self, client, x, y, width, height):
+    def __init__(self, client, getch_convert, x, y, width, height):
         self.client = client
+        self.getch_convert = getch_convert
         self._input = str()
         self._cursor = 0
         Window.__init__(self, x, y, width, height)
@@ -79,12 +125,7 @@ class UserInput(Window):
         return self._input
 
     def key_event(self, key):
-        if ascii.isprint(key):
-            self._win.insstr(chr(key))
-            self._input = self._input[:self._cursor] + chr(key) + self._input[self._cursor:]
-            self._cursor += 1
-            self.redraw_cursor()
-        elif key in (curses.KEY_LEFT, ascii.STX) and self._cursor > 0: # <- or Ctrl+B
+        if key in (curses.KEY_LEFT, ascii.STX) and self._cursor > 0: # <- or Ctrl+B
             self._cursor -= 1
             self.redraw_cursor()
         elif key in (curses.KEY_RIGHT, ascii.ACK) and self._cursor < len(self._input): # -> or Ctrl+F
@@ -116,6 +157,14 @@ class UserInput(Window):
             self._input = str()
             self._cursor = 0
             self.redraw()
+        elif key is not curses.ERR:
+            s = self.getch_convert(key)
+
+            if s:
+                self._win.insstr(s)
+                self._input = self._input[:self._cursor] + s + self._input[self._cursor:]
+                self._cursor += 1
+                self.redraw_cursor()
             
 class Chat(Window):
     def __init__(self, messages, redraw_cursor, x, y, width, height):
@@ -159,8 +208,10 @@ class Chat(Window):
 def run(screen, client):
     screen.refresh()
     y, x = screen.getmaxyx()
-    user_input = UserInput(client, 0, y-1, x, 1)
-    chat = Chat(client.messages, user_input.redraw_cursor, 0, 0, x, y-1)
+    user_input = UserInput(client, lambda c : getch_convert(screen.getch, c),
+            0, y-1, x, 1)
+    chat = Chat(client.messages, user_input.redraw_cursor,
+            0, 0, x, y-1)
 
     while True:
         key = screen.getch()
