@@ -157,7 +157,7 @@ class UserInput(Window):
             self._input = str()
             self._cursor = 0
             self.redraw()
-        elif key is not curses.ERR:
+        elif key is not curses.ERR and len(self.get_prompt()) + len(self._input) + 1 < self._win.getmaxyx()[1]:
             s = self.getch_convert(key)
 
             if s:
